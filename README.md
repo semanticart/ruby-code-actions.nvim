@@ -29,6 +29,8 @@ use {
 }
 ```
 
+You can invoke these code actions the same way you'd invoke any other code action in your setup. e.g. with [telescope](https://github.com/nvim-telescope/telescope.nvim) you can do `:Telescope lsp_code_actions`
+
 ## Currently implemented
 
 - `insert_frozen_string_literal` for insertion of the [frozen string literal directive](https://docs.ruby-lang.org/en/3.0/doc/syntax/comments_rdoc.html#label-frozen_string_literal+Directive)
