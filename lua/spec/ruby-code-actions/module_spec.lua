@@ -2,9 +2,34 @@ local mock = require('luassert.mock')
 local ruby_code_actions = require('ruby-code-actions')
 
 local insert_frozen_string_literal_generator =
-    ruby_code_actions.generators.insert_frozen_string_literal_generator;
+    ruby_code_actions.generators.insert_frozen_string_literal_generator
+local autocorrect_with_rubocop_generator =
+    ruby_code_actions.generators.autocorrect_with_rubocop_generator
 
 local frozen_string_literal_comment = "# frozen_string_literal: true"
+
+local non_selection_context = {
+    bufname = "my-bufname",
+    bufnr = 1,
+    content = {"puts \"starting\"", "", "puts \"hello world\""},
+    range = {col = 1, end_col = 1, end_row = 1, row = 1},
+    row = 1
+}
+
+local visual_selection_context = {
+    bufname = "my-bufname",
+    bufnr = 1,
+    content = {"puts \"starting\"", "", "puts \"hello world\""},
+    range = {col = 1, end_col = 1, end_row = 2, row = 1},
+    row = 1
+}
+
+local choice_by_title = function(choices, title)
+    for _, action in ipairs(choices) do
+        if action.title == title then return action end
+    end
+    return nil
+end
 
 describe("insert_frozen_string_literal_generator", function()
     it(
@@ -24,12 +49,10 @@ describe("insert_frozen_string_literal_generator", function()
         function()
             local context = {content = {"puts 'hello world'"}}
 
-            local results = insert_frozen_string_literal_generator(context)
+            local choices = insert_frozen_string_literal_generator(context)
 
-            assert.equals(1, table.getn(results))
-            assert.equals("🥶Add frozen string literal comment",
-                          results[1].title)
-
+            assert.is_table(choice_by_title(choices,
+                                            "🥶Add frozen string literal comment"))
         end)
 
     it("inserts the frozen string literal comment when the action is called",
@@ -40,12 +63,148 @@ describe("insert_frozen_string_literal_generator", function()
 
         local context = {content = {first_line}, bufnr = 9}
 
-        local action = insert_frozen_string_literal_generator(context)[1].action
+        local choices = insert_frozen_string_literal_generator(context)
+        local action = choice_by_title(choices,
+                                       "🥶Add frozen string literal comment").action
 
         action()
 
         assert.stub(api.nvim_buf_set_lines).was_called_with(9, 0, 1, false, {
             frozen_string_literal_comment, "", first_line
         })
+
+        mock.revert(api)
+    end)
+end)
+
+describe("autocorrect_with_rubocop_generator", function()
+    describe("unsafely correcting a file", function()
+        local title = "🤖Unsafe Autocorrect with Rubocop"
+
+        it("is an available action when no lines are selected", function()
+            local choices = autocorrect_with_rubocop_generator(
+                                non_selection_context)
+
+            assert.is_table(choice_by_title(choices, title))
+        end)
+
+        it("is not an available action when lines are selected", function()
+            local choices = autocorrect_with_rubocop_generator(
+                                visual_selection_context)
+
+            assert.is_nil(choice_by_title(choices, title))
+        end)
+
+        it(
+            "invokes rubocop to unsafely autocorrect and re-open the current buffer when the action is called",
+            function()
+                local api = mock(vim.api, true)
+                local fs = mock(ruby_code_actions.fs, true)
+
+                local choices = autocorrect_with_rubocop_generator(
+                                    non_selection_context)
+                local action = choice_by_title(choices, title).action
+                action()
+
+                assert.stub(fs.system).was_called_with("rubocop -A my-bufname")
+                assert.stub(api.nvim_command).was_called_with("edit")
+
+                mock.revert(api)
+                mock.revert(fs)
+            end)
+    end)
+
+    describe("safely correcting a file", function()
+        local title = "🤖Safe Autocorrect with Rubocop"
+
+        it("is an available action when no lines are selected", function()
+            local choices = autocorrect_with_rubocop_generator(
+                                non_selection_context)
+
+            assert.is_table(choice_by_title(choices, title))
+        end)
+
+        it("is not an available action when lines are selected", function()
+            local choices = autocorrect_with_rubocop_generator(
+                                visual_selection_context)
+
+            assert.is_nil(choice_by_title(choices, title))
+        end)
+
+        it(
+            "invokes rubocop to safely autocorrect and re-open the current buffer when the action is called",
+            function()
+                local api = mock(vim.api, true)
+                local fs = mock(ruby_code_actions.fs, true)
+
+                local choices = autocorrect_with_rubocop_generator(
+                                    non_selection_context)
+                local action = choice_by_title(choices, title).action
+                action()
+
+                assert.stub(fs.system).was_called_with("rubocop -a my-bufname")
+                assert.stub(api.nvim_command).was_called_with("edit")
+
+                mock.revert(api)
+                mock.revert(fs)
+            end)
+    end)
+
+    describe("autocorrecting line(s)", function()
+        it(
+            "calls rubocop to autocorrect the current line and replace it when the action is called with no selection",
+            function()
+                local title = "🤖Autocorrect line with Rubocop"
+
+                local api = mock(vim.api, true)
+                local fs = mock(ruby_code_actions.fs, true)
+                fs.readfile.returns("puts \"starting\"")
+                fs.tempname.returns("temp-file-name")
+                fs.readfile.returns({"puts 'starting'"})
+
+                local choices = autocorrect_with_rubocop_generator(
+                                    non_selection_context)
+
+                local action = choice_by_title(choices, title).action
+                action()
+
+                assert.stub(api.nvim_buf_set_lines).was_called_with(1, 0, 1,
+                                                                    false, {
+                    "puts 'starting'"
+                })
+
+                mock.revert(api)
+                mock.revert(fs)
+            end)
+        it(
+            "calls rubocop to autocorrect selected lines and replace them when the action is called with a selection",
+            function()
+
+                local title = "🤖Autocorrect lines with Rubocop"
+
+                local api = mock(vim.api, true)
+                local fs = mock(ruby_code_actions.fs, true)
+                fs.readfile.returns({
+                    "puts \"starting\"", "", "puts \"hello world\""
+                })
+                fs.tempname.returns("temp-file-name")
+                fs.readfile.returns({
+                    "puts 'starting'", "", "puts 'hello world'"
+                })
+
+                local choices = autocorrect_with_rubocop_generator(
+                                    visual_selection_context)
+
+                local action = choice_by_title(choices, title).action
+                action()
+
+                assert.stub(api.nvim_buf_set_lines).was_called_with(1, 0, 2,
+                                                                    false, {
+                    "puts 'starting'", "", "puts 'hello world'"
+                })
+
+                mock.revert(api)
+                mock.revert(fs)
+            end)
     end)
 end)
