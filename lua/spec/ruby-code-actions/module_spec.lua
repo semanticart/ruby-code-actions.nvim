@@ -99,18 +99,20 @@ describe("autocorrect_with_rubocop_generator", function()
             "invokes rubocop to unsafely autocorrect and re-open the current buffer when the action is called",
             function()
                 local api = mock(vim.api, true)
-                local fs = mock(ruby_code_actions.fs, true)
+                local overrideables =
+                    mock(ruby_code_actions.overrideables, true)
 
                 local choices = autocorrect_with_rubocop_generator(
                                     non_selection_context)
                 local action = choice_by_title(choices, title).action
                 action()
 
-                assert.stub(fs.system).was_called_with("rubocop -A my-bufname")
+                assert.stub(overrideables.system).was_called_with(
+                    "rubocop -A my-bufname")
                 assert.stub(api.nvim_command).was_called_with("edit")
 
                 mock.revert(api)
-                mock.revert(fs)
+                mock.revert(overrideables)
             end)
     end)
 
@@ -135,18 +137,20 @@ describe("autocorrect_with_rubocop_generator", function()
             "invokes rubocop to safely autocorrect and re-open the current buffer when the action is called",
             function()
                 local api = mock(vim.api, true)
-                local fs = mock(ruby_code_actions.fs, true)
+                local overrideables =
+                    mock(ruby_code_actions.overrideables, true)
 
                 local choices = autocorrect_with_rubocop_generator(
                                     non_selection_context)
                 local action = choice_by_title(choices, title).action
                 action()
 
-                assert.stub(fs.system).was_called_with("rubocop -a my-bufname")
+                assert.stub(overrideables.system).was_called_with(
+                    "rubocop -a my-bufname")
                 assert.stub(api.nvim_command).was_called_with("edit")
 
                 mock.revert(api)
-                mock.revert(fs)
+                mock.revert(overrideables)
             end)
     end)
 
@@ -157,10 +161,11 @@ describe("autocorrect_with_rubocop_generator", function()
                 local title = "🤖Autocorrect line with Rubocop"
 
                 local api = mock(vim.api, true)
-                local fs = mock(ruby_code_actions.fs, true)
-                fs.readfile.returns("puts \"starting\"")
-                fs.tempname.returns("temp-file-name")
-                fs.readfile.returns({"puts 'starting'"})
+                local overrideables =
+                    mock(ruby_code_actions.overrideables, true)
+                overrideables.readfile.returns("puts \"starting\"")
+                overrideables.tempname.returns("temp-file-name")
+                overrideables.readfile.returns({"puts 'starting'"})
 
                 local choices = autocorrect_with_rubocop_generator(
                                     non_selection_context)
@@ -172,23 +177,25 @@ describe("autocorrect_with_rubocop_generator", function()
                                                                     false, {
                     "puts 'starting'"
                 })
+                assert.stub(overrideables.reindent).was_called_with(1, 1)
 
                 mock.revert(api)
-                mock.revert(fs)
+                mock.revert(overrideables)
             end)
         it(
             "calls rubocop to autocorrect selected lines and replace them when the action is called with a selection",
             function()
-
                 local title = "🤖Autocorrect lines with Rubocop"
 
+                local cmd = mock(vim.cmd, false)
                 local api = mock(vim.api, true)
-                local fs = mock(ruby_code_actions.fs, true)
-                fs.readfile.returns({
+                local overrideables =
+                    mock(ruby_code_actions.overrideables, true)
+                overrideables.readfile.returns({
                     "puts \"starting\"", "", "puts \"hello world\""
                 })
-                fs.tempname.returns("temp-file-name")
-                fs.readfile.returns({
+                overrideables.tempname.returns("temp-file-name")
+                overrideables.readfile.returns({
                     "puts 'starting'", "", "puts 'hello world'"
                 })
 
@@ -203,8 +210,11 @@ describe("autocorrect_with_rubocop_generator", function()
                     "puts 'starting'", "", "puts 'hello world'"
                 })
 
+                assert.stub(overrideables.reindent).was_called_with(1, 3)
+
+                mock.revert(cmd)
                 mock.revert(api)
-                mock.revert(fs)
+                mock.revert(overrideables)
             end)
     end)
 end)

@@ -1,13 +1,27 @@
-local fs = {}
+-- NOTE: In practice, these are only a convenience for mocking, but you _could_
+-- provide your own implementations
+local overrideables = {}
 
-fs.tempname = function() return vim.api.nvim_call_function("tempname", {}) end
-fs.writefile = function(lines, filename)
+overrideables.tempname = function()
+    return vim.api.nvim_call_function("tempname", {})
+end
+
+overrideables.writefile = function(lines, filename)
     return vim.api.nvim_call_function("writefile", {lines, filename})
 end
-fs.readfile = function(filename)
+
+overrideables.readfile = function(filename)
     return vim.api.nvim_call_function("readfile", {filename})
 end
-fs.system = function(cmd) return vim.api.nvim_call_function("system", {cmd}) end
+
+overrideables.system = function(cmd)
+    return vim.api.nvim_call_function("system", {cmd})
+end
+
+overrideables.reindent = function(start_line, end_line)
+    vim.api.nvim_command(
+        "execute \"normal! " .. start_line .. "G=" .. end_line .. "G\"")
+end
 
 local helpers = {}
 
@@ -39,10 +53,10 @@ end
 -- path
 helpers.process_selected_lines_as_tempname =
     function(command, context)
-        local tempname = fs.tempname()
-        fs.writefile(helpers.selected_lines(context), tempname)
-        fs.system(command:gsub("__FILE__", tempname))
-        return fs.readfile(tempname)
+        local tempname = overrideables.tempname()
+        overrideables.writefile(helpers.selected_lines(context), tempname)
+        overrideables.system(command:gsub("__FILE__", tempname))
+        return overrideables.readfile(tempname)
     end
 
 local insert_frozen_string_literal_generator = function(context)
@@ -71,7 +85,7 @@ local autocorrect_with_rubocop_generator = function(context)
 
     if not helpers.visual_selection(context) then
         local autocorrect_file = function(mode, context)
-            fs.system("rubocop -" .. mode .. " " .. context.bufname)
+            overrideables.system("rubocop -" .. mode .. " " .. context.bufname)
             vim.api.nvim_command("edit")
         end
 
@@ -97,9 +111,8 @@ local autocorrect_with_rubocop_generator = function(context)
 
             -- re-indent changed lines since they've likely lossed their
             -- indention context
-            vim.cmd(
-                "normal! " .. context.row .. "G=" .. context.range.end_row ..
-                    "G")
+            overrideables.reindent(context.row,
+                                   context.row + table.getn(result) - 1)
         end
     })
 
@@ -121,7 +134,7 @@ return {
         autocorrect_with_rubocop_generator = autocorrect_with_rubocop_generator,
         insert_frozen_string_literal_generator = insert_frozen_string_literal_generator
     },
-    fs = fs, -- really only used for mocking
+    overrideables = overrideables,
     autocorrect_with_rubocop = make_code_action(
         autocorrect_with_rubocop_generator),
     insert_frozen_string_literal = make_code_action(
