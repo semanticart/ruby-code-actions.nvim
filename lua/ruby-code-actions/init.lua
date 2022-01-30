@@ -1,5 +1,5 @@
--- NOTE: In practice, these are only a convenience for mocking, but you _could_
--- provide your own implementations
+-- NOTE: In practice, these are really a convenience for mocking, but you
+-- _could_ provide your own implementations
 local overrideables = {}
 
 overrideables.tempname = function()
@@ -22,6 +22,18 @@ overrideables.reindent = function(start_line, end_line)
     vim.api.nvim_command(
         "execute \"normal! " .. start_line .. "G=" .. end_line .. "G\"")
 end
+
+-- These are more likely to be overridden
+local strings = {
+    safe_autocorrect_with_rubocop = "🤖Safe Autocorrect with Rubocop",
+    unsafe_autocorrect_with_rubocop = "🤖Unsafe Autocorrect with Rubocop",
+    frozen_string_literal = "🥶Add frozen string literal comment",
+    frozen_string_literal_comment = "# frozen_string_literal: true",
+    autocorrect_line_s_with_rubocop = function(plural)
+        plural = plural and "" or "s"
+        return "🤖Autocorrect line" .. plural .. " with Rubocop"
+    end
+}
 
 local helpers = {}
 
@@ -60,16 +72,15 @@ helpers.process_selected_lines_as_tempname =
     end
 
 local insert_frozen_string_literal_generator = function(context)
-    local frozen_string_literal_comment = "# frozen_string_literal: true"
     local first_line = context.content[1]
 
-    if first_line ~= frozen_string_literal_comment then
+    if first_line ~= strings.frozen_string_literal_comment then
         return {
             {
-                title = "🥶Add frozen string literal comment",
+                title = strings.frozen_string_literal,
                 action = function()
                     local lines = {
-                        frozen_string_literal_comment, "", first_line
+                        strings.frozen_string_literal_comment, "", first_line
                     }
 
                     vim.api
@@ -90,19 +101,19 @@ local autocorrect_with_rubocop_generator = function(context)
         end
 
         table.insert(actions, {
-            title = "🤖Safe Autocorrect with Rubocop",
+            title = strings.safe_autocorrect_with_rubocop,
             action = function() autocorrect_file("a", context) end
         })
         table.insert(actions, {
-            title = "🤖Unsafe Autocorrect with Rubocop",
+            title = strings.unsafe_autocorrect_with_rubocop,
             action = function() autocorrect_file("A", context) end
         })
     end
 
-    local plural = helpers.single_line(context) and "" or "s"
+    local plural = helpers.single_line(context)
 
     table.insert(actions, {
-        title = "🤖Autocorrect line" .. plural .. " with Rubocop",
+        title = strings.autocorrect_line_s_with_rubocop(plural),
         action = function()
             result = helpers.process_selected_lines_as_tempname(
                          "rubocop -a __FILE__", context)
@@ -135,6 +146,7 @@ return {
         insert_frozen_string_literal_generator = insert_frozen_string_literal_generator
     },
     overrideables = overrideables,
+    strings = strings,
     autocorrect_with_rubocop = make_code_action(
         autocorrect_with_rubocop_generator),
     insert_frozen_string_literal = make_code_action(
