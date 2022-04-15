@@ -95,8 +95,8 @@ local autocorrect_with_rubocop_generator = function(context)
     local actions = {}
 
     if not helpers.visual_selection(context) then
-        local autocorrect_file = function(mode, context)
-            overrideables.system("rubocop -" .. mode .. " " .. context.bufname)
+        local autocorrect_file = function(mode, ctx)
+            overrideables.system("rubocop -" .. mode .. " " .. ctx.bufname)
             vim.api.nvim_command("edit")
         end
 
@@ -115,8 +115,8 @@ local autocorrect_with_rubocop_generator = function(context)
     table.insert(actions, {
         title = strings.autocorrect_line_s_with_rubocop(plural),
         action = function()
-            result = helpers.process_selected_lines_as_tempname(
-                         "rubocop -a __FILE__", context)
+            local result = helpers.process_selected_lines_as_tempname(
+                               "rubocop -a __FILE__", context)
             vim.api.nvim_buf_set_lines(context.bufnr, context.row - 1,
                                        context.range.end_row, false, result)
 

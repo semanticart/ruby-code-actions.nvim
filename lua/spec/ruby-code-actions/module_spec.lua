@@ -60,7 +60,7 @@ describe("insert_frozen_string_literal_generator", function()
        function()
         local api = mock(vim.api, true)
 
-        first_line = "puts 'hello world'"
+        local first_line = "puts 'hello world'"
 
         local context = {content = {first_line}, bufnr = 9}
 
@@ -80,9 +80,9 @@ describe("insert_frozen_string_literal_generator", function()
     it("works if the action title is overridden", function()
         local api = mock(vim.api, true)
 
-        first_line = "puts 'hello world'"
+        local first_line = "puts 'hello world'"
 
-        new_title = "brrrr..."
+        local new_title = "brrrr..."
         require('ruby-code-actions').strings.frozen_string_literal = new_title
 
         local context = {content = {first_line}, bufnr = 9}
