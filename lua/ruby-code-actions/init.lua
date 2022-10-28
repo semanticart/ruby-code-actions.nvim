@@ -120,7 +120,7 @@ local autocorrect_with_rubocop_generator = function(context)
             vim.api.nvim_buf_set_lines(context.bufnr, context.row - 1,
                                        context.range.end_row, false, result)
 
-            -- re-indent changed lines since they've likely lossed their
+            -- re-indent changed lines since they've likely lost their
             -- indention context
             overrideables.reindent(context.row,
                                    context.row + table.getn(result) - 1)
